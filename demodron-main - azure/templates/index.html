@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Drone Detection</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #e8f4ff; color: #1a1a2e; line-height: 1.5; overflow-x: hidden; }
+.container { max-width: 2000px; margin: 0 auto; padding: 0.5rem; }
+.header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: #1700F2; border-radius: 12px; margin-bottom: 0.5rem; box-shadow: 0 4px 20px rgba(23,0,242,0.3); }
+.header-left { display: flex; align-items: center; gap: 1rem; }
+.header-center { flex: 1; display: flex; justify-content: center; align-items: center; }
+.header-right { display: flex; align-items: center; }
+.logo-icon { height: 40px; width: auto; }
+.logo-center { height: 55px; width: auto; }
+h1 { font-size: 1.3rem; margin: 0; color: white; font-weight: 700; }
+.status-badge { display: inline-block; padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; margin-left: 0.5rem; }
+.status-connected { background: rgba(34, 197, 94, 0.9); color: white; }
+.status-disconnected { background: rgba(239, 68, 68, 0.9); color: white; }
+.perf-badge { display: flex; gap: 1rem; font-size: 0.75rem; font-family: 'Courier New', monospace; color: rgba(255,255,255,0.9); }
+.perf-badge span { white-space: nowrap; }
+.perf-value { color: #09ECFD; font-weight: 700; text-shadow: 0 0 10px rgba(9,236,253,0.5); }
+.main-grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+@media (min-width: 1400px) { .main-grid { grid-template-columns: 2fr 1fr; } }
+.panel { background: white; border-radius: 12px; padding: 0.75rem; box-shadow: 0 2px 12px rgba(23,0,242,0.1); border: 1px solid rgba(23,0,242,0.1); }
+#previewWrap { position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+#video { width: 100%; height: auto; display: block; }
+#overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+.controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+button { background: #1700F2; color: white; border: none; padding: 0.6rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: transform 0.2s, box-shadow 0.2s; }
+button:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(23,0,242,0.5); }
+button:disabled { background: #cbd5e1; cursor: not-allowed; opacity: 0.6; transform: none; }
+button.secondary { background: #09ECFD; color: #1700F2; }
+button.secondary:hover { box-shadow: 0 6px 16px rgba(9,236,253,0.5); }
+button.danger { background: #ef4444; }
+button.danger:hover { box-shadow: 0 4px 12px rgba(239,68,68,0.4); }
+select, input[type="number"] { background: white; color: #1a1a2e; border: 2px solid #e0e7ff; border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; min-width: 150px; transition: border-color 0.2s; }
+select:focus, input[type="number"]:focus { outline: none; border-color: #1700F2; }
+label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: #1700F2; }
+.gps-status { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: #f1f5f9; border-radius: 8px; font-size: 0.8rem; border: 1px solid #e0e7ff; }
+.gps-indicator { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+.gps-indicator.active { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.6); }
+#map { height: 400px; border-radius: 12px; margin-top: 0.75rem; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+.detections-table { margin-top: 0.75rem; overflow-x: auto; max-height: 300px; overflow-y: auto; background: white; border-radius: 8px; }
+.detections-table table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.detections-table th, .detections-table td { padding: 0.4rem; text-align: left; border-bottom: 1px solid #e0e7ff; }
+.detections-table th { background: #1700F2; color: white; font-weight: 600; position: sticky; top: 0; z-index: 1; }
+.detections-table tr:hover { background: #f8fafc; }
+.mode-bearing { color: #f59e0b; font-weight: 600; }
+.mode-triangulated { color: #10b981; font-weight: 600; }
+.mode-estimate { color: #3b82f6; font-weight: 600; }
+.uav-handoff { background: #f8fafc; border-radius: 8px; padding: 0.75rem; margin-top: 0.75rem; border: 1px solid #e0e7ff; }
+.uav-handoff h4 { font-size: 0.9rem; margin-bottom: 0.5rem; color: #1700F2; font-weight: 700; }
+.uav-json { background: white; padding: 0.5rem; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #475569; overflow-x: auto; max-height: 200px; overflow-y: auto; border: 1px solid #e0e7ff; }
+.alert { padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.85rem; }
+.alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+h3 { font-size: 1rem; margin-bottom: 0.75rem; color: #1700F2; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-left">
+      <img src="/static/dronelab-icon.png" alt="DroneLab" class="logo-icon">
+      <h1>Drone Detection<span id="statusBadge" class="status-badge status-disconnected">Disconnected</span></h1>
+    </div>
+    <div class="header-center">
+      <img src="/static/trustlab.png" alt="TrustLab" class="logo-center">
+    </div>
+    <div class="header-right">
+      <div class="perf-badge">
+        <span>Detection: <span class="perf-value" id="detCount">0</span></span>
+        <span>FPS: <span class="perf-value" id="perfFps">0</span></span>
+        <span>Infer: <span class="perf-value" id="perfInfer">0ms</span></span>
+        <span>Dropped: <span class="perf-value" id="perfDropped">0%</span></span>
+        <span>Size: <span class="perf-value" id="perfSize">0KB</span></span>
+      </div>
+    </div>
+  </div>
+  <div id="securityWarning" class="alert alert-error" style="display:none;">Insecure Context: Camera blocked. Use HTTPS.</div>
+  <div class="main-grid">
+    <div>
+      <div class="panel">
+        <div id="previewWrap">
+          <video id="video" playsinline autoplay muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="controls">
+          <button id="startBtn">Start</button>
+          <button id="stopBtn" class="danger">Stop</button>
+          <button id="gpsBtn" class="secondary">Enable GPS</button>
+          <select id="deviceSelect"><option value="">Default Camera</option></select>
+          <div class="gps-status"><div class="gps-indicator" id="gpsIndicator"></div><span id="gpsText">GPS: No fix</span></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:0.5rem;"><h3>Detection Map</h3><div id="map"></div></div>
+    </div>
+    <div>
+      <div class="panel">
+        <h3>Settings</h3>
+        <label>Camera FOV (degrees):<input type="number" id="hfovInput" value="63" min="40" max="120" step="1"></label>
+        <label style="margin-top:0.5rem;">Manual Heading (leave empty for compass):<input type="number" id="manualHeading" placeholder="Auto" min="0" max="360" step="1"></label>
+        <div style="margin-top:0.75rem;font-size:0.85rem;color:#9ca3af;">
+          <div>Heading: <span id="headingDisplay" style="color:#22c55e;">Unknown</span></div>
+          <div>Source: <span id="headingSource" style="color:#22c55e;">None</span></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:0.5rem;">
+        <h3>UAV Handoff</h3>
+        <div class="uav-handoff"><h4>Current Target</h4><div class="uav-json" id="uavJson">Waiting for triangulated target...</div></div>
+      </div>
+      <div class="panel" style="margin-top:0.5rem;">
+        <h3>Recent Detections</h3>
+        <div class="detections-table">
+          <table id="detectionsTable"><thead><tr><th>Time</th><th>Class</th><th>Conf</th><th>Bearing</th><th>Mode</th><th>Est Lat</th><th>Est Lon</th><th>Err(m)</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/index.js"></script>
+</body>
+</html>
