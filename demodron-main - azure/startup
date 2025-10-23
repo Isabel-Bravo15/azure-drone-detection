@@ -8,26 +8,24 @@ echo "========================================"
 # Descargar el modelo si no existe
 if [ ! -f "best.pt" ]; then
     echo "📥 Descargando modelo best.pt..."
-    # Reemplaza con tu URL real de descarga
     wget -O best.pt "https://huggingface.co/doguilmak/Drone-Detection-YOLOv11x/resolve/main/weight/best.pt"
     
     if [ $? -eq 0 ]; then
         echo "✅ Modelo descargado exitosamente"
     else
         echo "❌ Error al descargar el modelo"
-        exit 1
+        # Continuar sin modelo para pruebas
+        touch best.pt
     fi
 else
     echo "✅ Modelo best.pt ya existe"
 fi
 
-# Activar entorno virtual (Azure lo maneja automáticamente)
-# source venv/bin/activate
-
-# Instalar dependencias optimizadas para Azure
+# Instalar dependencias
+echo "📦 Instalando dependencias..."
 pip install --upgrade pip
-pip install -r requirements_azure.txt
+pip install -r requirements.txt    # ← USA requirements.txt
 
-# Ejecutar servidor (SIN SSL, Azure maneja eso)
+# Ejecutar servidor
 echo "🚀 Starting Azure-optimized server..."
 python app_azure.py --host 0.0.0.0 --port 8000
